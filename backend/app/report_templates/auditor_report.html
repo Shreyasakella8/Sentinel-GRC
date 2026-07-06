@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @page { size: A4; margin: 16mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 9.5pt; color: #1a202c; }
+  .page-header { border-bottom: 3px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .org-name { font-size: 16pt; font-weight: 900; color: #0d1220; }
+  .report-type { font-size: 8pt; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em; }
+  .confidential { display: inline-block; background: #0284c7; color: white; font-size: 7pt; font-weight: 700; padding: 2px 8px; border-radius: 3px; }
+  h2 { font-size: 11pt; font-weight: 700; color: #1a202c; margin: 18px 0 8px; border-left: 3px solid #0284c7; padding-left: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 8.5pt; }
+  th { background: #1e3a5f; color: white; padding: 6px 9px; text-align: left; font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 6px 9px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 7pt; font-weight: 700; text-transform: uppercase; }
+  .badge-pass { background: #f0fdf4; color: #16a34a; }
+  .badge-fail { background: #fee2e2; color: #e63946; }
+  .badge-critical { background: #fee2e2; color: #e63946; }
+  .hash { font-family: 'Courier New', monospace; font-size: 7.5pt; color: #6b7280; word-break: break-all; }
+  .chain-valid { color: #16a34a; font-weight: 700; }
+  .chain-invalid { color: #e63946; font-weight: 700; }
+  .footer { margin-top: 28px; padding-top: 8px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 7pt; color: #9ca3af; }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+<div class="page-header">
+  <div>
+    <div class="org-name">{{ org_name }}</div>
+    <div class="report-type">ISO 27001 Audit Report — Information Security Management System</div>
+  </div>
+  <div style="text-align:right;font-size:7.5pt;color:#6b7280;">
+    <div class="confidential">AUDIT CONFIDENTIAL</div><br/>
+    {{ report_date }}<br/>SENTINEL-GRC
+  </div>
+</div>
+
+<h2>Audit Scope & Compliance Summary</h2>
+<table>
+  <tr><th>Metric</th><th>Value</th></tr>
+  <tr><td>Total Controls Tested</td><td><strong>{{ compliance.total_controls }}</strong></td></tr>
+  <tr><td>Controls Passing</td><td style="color:#16a34a;font-weight:700;">{{ compliance.passed }}</td></tr>
+  <tr><td>Controls Failing (Non-Conformities)</td><td style="color:#e63946;font-weight:700;">{{ compliance.failed }}</td></tr>
+  <tr><td>Overall Compliance Score</td><td><strong>{{ compliance.compliance_score }}%</strong></td></tr>
+  <tr><td>Total Financial Risk Exposure (ALE)</td><td style="color:#e63946;font-weight:700;">{{ risk.total_ale_formatted }}</td></tr>
+  <tr><td>Critical Risks Open</td><td>{{ risk.critical_count }}</td></tr>
+  <tr><td>Evidence Entries in Vault</td><td>{{ evidence|length }}</td></tr>
+  <tr><td>Report Generated</td><td>{{ report_date }}</td></tr>
+</table>
+
+<h2>Control Test Results — Framework Mapping</h2>
+<table>
+  <thead><tr><th>Control ID</th><th>Control Name</th><th>Result</th><th>ISO 27001</th><th>NIST CSF</th><th>SOC 2</th><th>Finding</th><th>Tested</th></tr></thead>
+  <tbody>
+    {% for r in compliance.results %}
+    <tr>
+      <td style="font-family:monospace;font-size:7.5pt;">{{ r.control_id }}</td>
+      <td>{{ r.control_name }}</td>
+      <td><span class="badge badge-{{ 'pass' if r.passed else 'fail' }}">{{ 'PASS' if r.passed else 'FAIL' }}</span></td>
+      <td style="font-family:monospace;font-size:7.5pt;">{{ r.iso27001 or r.control_id }}</td>
+      <td style="font-size:7.5pt;color:#6b7280;">{{ r.nist_csf or "—" }}</td>
+      <td style="font-size:7.5pt;color:#6b7280;">{{ r.soc2 or "—" }}</td>
+      <td style="font-size:8pt;">{{ (r.finding or '')[:90] }}{% if (r.finding or '')|length > 90 %}...{% endif %}</td>
+      <td style="font-size:7.5pt;color:#6b7280;white-space:nowrap;">{{ r.executed_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="page-break"></div>
+<h2>Evidence Vault — Cryptographic Integrity Records</h2>
+<p style="font-size:8.5pt;color:#4a5568;margin-bottom:10px;">
+  All evidence is SHA-256 hashed and HMAC-signed at collection time. Entries are blockchain-chained.
+  Any tampering with evidence will invalidate the chain hash of all subsequent entries.
+</p>
+<table>
+  <thead><tr><th>Entry Ref</th><th>Control</th><th>Type</th><th>Content Hash (SHA-256)</th><th>HMAC Sig</th><th>Chain</th><th>Frameworks</th><th>Collected</th></tr></thead>
+  <tbody>
+    {% for e in evidence %}
+    <tr>
+      <td style="font-family:monospace;font-size:7pt;">{{ e.entry_ref or 'EVD-' ~ loop.index }}</td>
+      <td style="font-family:monospace;font-size:7.5pt;">{{ e.control_id }}</td>
+      <td style="font-size:7.5pt;">{{ e.evidence_type }}</td>
+      <td class="hash">{{ e.content_hash }}</td>
+      <td class="hash">{{ e.hmac_signature }}</td>
+      <td>
+        {% if e.chain_valid != false %}
+          <span class="chain-valid">✓ VALID</span>
+        {% else %}
+          <span class="chain-invalid">✗ BROKEN</span>
+        {% endif %}
+      </td>
+      <td style="font-size:7pt;">{{ e.frameworks }}</td>
+      <td style="font-size:7.5pt;white-space:nowrap;">{{ e.collected_at }}</td>
+    </tr>
+    {% endfor %}
+    {% if not evidence %}
+    <tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:16px;">No evidence entries — run control sweep to populate vault</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<h2>Risk Register Summary</h2>
+<table>
+  <thead><tr><th>Risk Ref</th><th>Title</th><th>Severity</th><th>ALE</th><th>Exploit Prob.</th><th>Frameworks</th><th>Treatment</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for r in risk.all_risks %}
+    <tr>
+      <td style="font-family:monospace;font-size:7.5pt;">{{ r.risk_ref }}</td>
+      <td>{{ r.title[:60] }}{% if r.title|length > 60 %}...{% endif %}</td>
+      <td><span class="badge badge-{{ r.severity }}">{{ r.severity }}</span></td>
+      <td style="font-family:monospace;font-weight:700;">{{ r.ale_gbp }}</td>
+      <td style="font-family:monospace;">{{ r.exploitation_prob }}</td>
+      <td style="font-size:7pt;">{{ r.frameworks }}</td>
+      <td style="text-transform:capitalize;font-size:8pt;">{{ r.treatment }}</td>
+      <td style="text-transform:capitalize;font-size:8pt;">{{ r.status }}</td>
+    </tr>
+    {% endfor %}
+    {% if not risk.all_risks %}
+    <tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:16px;">No open risks</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<div class="footer">
+  <div>{{ org_name }} — ISO 27001 Audit Report — {{ report_date }}</div>
+  <div>{{ generated_by }} — AUDIT CONFIDENTIAL</div>
+</div>
+</body>
+</html>

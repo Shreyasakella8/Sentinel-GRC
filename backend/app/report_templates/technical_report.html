@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @page { size: A4; margin: 14mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; font-size: 8.5pt; color: #1a202c; background: white; }
+  .page-header { border-bottom: 2px solid #10b981; padding-bottom: 10px; margin-bottom: 18px; }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-end; }
+  .org-name { font-size: 14pt; font-weight: 900; font-family: Arial, sans-serif; color: #0d1220; }
+  .report-type { font-size: 7pt; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em; }
+  h2 { font-size: 9.5pt; font-weight: 700; color: #1a202c; margin: 16px 0 7px; border-left: 3px solid #10b981; padding-left: 8px; font-family: Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.06em; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 7.5pt; }
+  th { background: #064e3b; color: white; padding: 5px 8px; text-align: left; font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  .code-block { background: #1a202c; color: #e2e8f0; padding: 10px 12px; border-radius: 4px; font-size: 7.5pt; font-family: 'Courier New', monospace; margin: 6px 0; white-space: pre-wrap; word-break: break-all; }
+  .badge-pass { color: #16a34a; font-weight: 700; }
+  .badge-fail { color: #e63946; font-weight: 700; }
+  .hash { font-size: 7pt; color: #6b7280; word-break: break-all; }
+  .finding-fail { background: #fff5f5; border-left: 3px solid #e63946; padding: 7px 9px; margin: 5px 0; font-size: 8pt; }
+  .finding-pass { background: #f0fdf4; border-left: 3px solid #16a34a; padding: 7px 9px; margin: 5px 0; font-size: 8pt; }
+  .footer { margin-top: 24px; padding-top: 7px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 6.5pt; color: #9ca3af; }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+<div class="page-header">
+  <div class="header-top">
+    <div>
+      <div class="org-name">{{ org_name }}</div>
+      <div class="report-type">Technical Security Report — Control Runner Output — Security Engineering</div>
+    </div>
+    <div style="text-align:right;font-size:7pt;color:#6b7280;">
+      {{ report_date }}<br/>SENTINEL-GRC v{{ '1.0.0' }}<br/>
+      <span style="background:#10b981;color:white;padding:1px 6px;border-radius:2px;font-size:6.5pt;">TECHNICAL — INTERNAL ONLY</span>
+    </div>
+  </div>
+</div>
+
+<h2>Executive Summary</h2>
+<table>
+  <tr><th>Metric</th><th>Value</th><th>Metric</th><th>Value</th></tr>
+  <tr>
+    <td>Total Controls</td><td><strong>{{ compliance.total_controls }}</strong></td>
+    <td>Passing</td><td style="color:#16a34a;font-weight:700;">{{ compliance.passed }}</td>
+  </tr>
+  <tr>
+    <td>Failing</td><td style="color:#e63946;font-weight:700;">{{ compliance.failed }}</td>
+    <td>Compliance Score</td><td><strong>{{ compliance.compliance_score }}%</strong></td>
+  </tr>
+  <tr>
+    <td>Total ALE (FAIR)</td><td style="color:#e63946;font-weight:700;">{{ risk.total_ale_formatted }}</td>
+    <td>Critical Risks</td><td>{{ risk.critical_count }}</td>
+  </tr>
+</table>
+
+<h2>Control Runner Detailed Output</h2>
+{% for r in control_results %}
+<div style="margin-bottom:14px;border:1px solid {% if r.passed %}#d1fae5{% else %}#fee2e2{% endif %};border-radius:5px;overflow:hidden;">
+  <div style="background:{% if r.passed %}#064e3b{% else %}#7f1d1d{% endif %};color:white;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-weight:700;font-size:8.5pt;">{{ r.control_id }} — {{ r.control_name }}</span>
+    <span style="font-size:7pt;">{% if r.passed %}<span class="badge-pass" style="color:#6ee7b7;">✓ PASS</span>{% else %}<span class="badge-fail" style="color:#fca5a5;">✗ FAIL</span>{% endif %}</span>
+  </div>
+  <div style="padding:9px 10px;">
+    <div class="{% if r.passed %}finding-pass{% else %}finding-fail{% endif %}">
+      <strong>Finding:</strong> {{ r.finding }}
+    </div>
+    {% if not r.passed %}
+    <div style="margin-top:6px;font-size:7.5pt;color:#4a5568;">
+      <strong>Risk Contribution:</strong> {{ r.risk_contribution_gbp }}
+    </div>
+    {% endif %}
+    <div style="margin-top:6px;font-size:7pt;color:#6b7280;">
+      Executed: {{ r.executed_at }} · Evidence hash: <span class="hash">{{ r.evidence_hash }}</span>
+    </div>
+    {% if r.raw_output %}
+    <details style="margin-top:7px;">
+      <summary style="font-size:7.5pt;color:#0284c7;cursor:pointer;font-weight:700;">Raw Control Output (click to expand)</summary>
+      <div class="code-block">{{ r.raw_output }}</div>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% if not control_results %}
+<p style="color:#9ca3af;text-align:center;padding:20px;">No control results — run a control sweep to populate data</p>
+{% endif %}
+
+<div class="page-break"></div>
+<h2>Risk Register — Full Technical Detail</h2>
+<table>
+  <thead><tr><th>Ref</th><th>Title</th><th>Sev</th><th>ALE</th><th>ALE 90th</th><th>TEF</th><th>Vuln%</th><th>Exploit%</th><th>Frameworks</th><th>Source</th></tr></thead>
+  <tbody>
+    {% for r in risk.all_risks %}
+    <tr>
+      <td>{{ r.risk_ref }}</td>
+      <td>{{ r.title[:50] }}{% if r.title|length > 50 %}...{% endif %}</td>
+      <td style="font-weight:700;color:{% if r.severity=='critical' %}#e63946{% elif r.severity=='high' %}#f97316{% elif r.severity=='medium' %}#d97706{% else %}#16a34a{% endif %};">
+        {{ r.severity[:4].upper() }}
+      </td>
+      <td style="font-weight:700;">{{ r.ale_gbp }}</td>
+      <td>{{ r.ale_90th }}</td>
+      <td style="font-family:monospace;">{{ r.tef }}</td>
+      <td style="font-family:monospace;">{{ r.vuln_pct }}</td>
+      <td style="font-family:monospace;">{{ r.exploitation_prob }}</td>
+      <td style="font-size:7pt;">{{ r.frameworks[:30] }}</td>
+      <td style="font-size:7pt;">{{ r.source }}</td>
+    </tr>
+    {% endfor %}
+    {% if not risk.all_risks %}
+    <tr><td colspan="10" style="text-align:center;color:#9ca3af;padding:16px;">No risks in register</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<div class="footer">
+  <div>{{ org_name }} — Technical Security Report — {{ report_date }}</div>
+  <div>{{ generated_by }} — INTERNAL ONLY — NOT FOR BOARD DISTRIBUTION</div>
+</div>
+</body>
+</html>

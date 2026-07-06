@@ -1,0 +1,163 @@
+version: "3.9"
+
+services:
+  # ─── PostgreSQL + TimescaleDB ──────────────────────────────────────────────
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: sentinel_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel_secret
+      POSTGRES_DB: sentinel_grc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel_grc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: sentinel_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── MinIO (Local S3 Evidence Store) ──────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: sentinel_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: sentinel_minio
+      MINIO_ROOT_PASSWORD: sentinel_minio_secret
+    volumes:
+      - miniodata:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ─── FastAPI Backend ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentinel_backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://sentinel:sentinel_secret@db:5432/sentinel_grc
+      SYNC_DATABASE_URL: postgresql://sentinel:sentinel_secret@db:5432/sentinel_grc
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: sentinel_minio
+      MINIO_SECRET_KEY: sentinel_minio_secret
+      MINIO_BUCKET: evidence-vault
+      SECRET_KEY: "CHANGE_THIS_IN_PRODUCTION_super_secret_jwt_key_sentinel_grc_2024"
+      FIRST_SUPERUSER_EMAIL: admin@sentinel.local
+      FIRST_SUPERUSER_PASSWORD: SentinelAdmin@2024
+    volumes:
+      - ./backend:/app
+      - report_output:/app/reports
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: >
+      sh -c "
+        python -m app.db.init_db &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
+
+  # ─── Celery Worker ────────────────────────────────────────────────────────
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentinel_celery
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://sentinel:sentinel_secret@db:5432/sentinel_grc
+      SYNC_DATABASE_URL: postgresql://sentinel:sentinel_secret@db:5432/sentinel_grc
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: sentinel_minio
+      MINIO_SECRET_KEY: sentinel_minio_secret
+      MINIO_BUCKET: evidence-vault
+      SECRET_KEY: "CHANGE_THIS_IN_PRODUCTION_super_secret_jwt_key_sentinel_grc_2024"
+    volumes:
+      - ./backend:/app
+      - report_output:/app/reports
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app worker --loglevel=info -Q controls,reports,threats
+
+  # ─── Celery Beat (Scheduler) ──────────────────────────────────────────────
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentinel_beat
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://sentinel:sentinel_secret@db:5432/sentinel_grc
+      SYNC_DATABASE_URL: postgresql://sentinel:sentinel_secret@db:5432/sentinel_grc
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: sentinel_minio
+      MINIO_SECRET_KEY: sentinel_minio_secret
+      MINIO_BUCKET: evidence-vault
+      SECRET_KEY: "CHANGE_THIS_IN_PRODUCTION_super_secret_jwt_key_sentinel_grc_2024"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - celery_worker
+    command: celery -A app.tasks.celery_app beat --loglevel=info --scheduler celery.beat.PersistentScheduler
+
+  # ─── React Frontend ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sentinel_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+
+volumes:
+  pgdata:
+  miniodata:
+  report_output:
