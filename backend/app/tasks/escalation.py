@@ -6,6 +6,7 @@ Global SessionLocalSync. 72h SLA, £500K board threshold.
 from datetime import datetime, timedelta
 import structlog
 from app.tasks.celery_app import celery_app
+from app.services.slack_notifier import send_risk_alert_sync
 logger = structlog.get_logger()
 
 ESCALATION_SLA_HOURS = 72
@@ -54,6 +55,18 @@ def check_and_escalate(self):
                     "reason": f"No treatment within {ESCALATION_SLA_HOURS}h",
                 },
             ))
+            # ─── Slack alert for escalated risk ─────────────────────────────────────────
+            send_risk_alert_sync(
+                event_type="risk_escalated",
+                risk_ref=risk.risk_ref,
+                title=risk.title,
+                severity=risk.severity,
+                ale_gbp=risk.annualised_loss_expectancy_gbp or 0,
+                detail=(
+                    f"Risk has been open for over {ESCALATION_SLA_HOURS}h without treatment. "
+                    f"Escalation level: {risk.escalation_level}."
+                ),
+            )
             esc_count += 1
 
         # Board threshold
@@ -80,6 +93,18 @@ def check_and_escalate(self):
                     "threshold_gbp": BOARD_THRESHOLD_GBP,
                 },
             ))
+            # ─── Slack alert for board threshold breach ────────────────────────────────────
+            send_risk_alert_sync(
+                event_type="board_threshold",
+                risk_ref=risk.risk_ref,
+                title=risk.title,
+                severity=risk.severity or "high",
+                ale_gbp=risk.annualised_loss_expectancy_gbp or 0,
+                detail=(
+                    f"ALE £{risk.annualised_loss_expectancy_gbp:,.0f} exceeds board approval "
+                    f"threshold of £{BOARD_THRESHOLD_GBP:,}. Board sign-off required."
+                ),
+            )
             board_count += 1
 
         # Audit finding SLA

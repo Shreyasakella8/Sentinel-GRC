@@ -71,8 +71,6 @@ services:
       MINIO_SECRET_KEY: sentinel_minio_secret
       MINIO_BUCKET: evidence-vault
       SECRET_KEY: "CHANGE_THIS_IN_PRODUCTION_super_secret_jwt_key_sentinel_grc_2024"
-      FIRST_SUPERUSER_EMAIL: admin@sentinel.local
-      FIRST_SUPERUSER_PASSWORD: SentinelAdmin@2024
     volumes:
       - ./backend:/app
       - report_output:/app/reports

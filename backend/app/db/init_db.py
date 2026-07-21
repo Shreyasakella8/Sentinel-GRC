@@ -39,6 +39,65 @@ async def create_timescale_hypertables(session: AsyncSession):
             logger.warning(f"Hypertable creation skipped (may exist)", table=table, error=str(e))
 
 
+async def create_performance_indexes(session: AsyncSession):
+    """
+    Create composite indexes for the three hottest query paths.
+
+    Without these indexes, every control sweep and risk recalculation
+    runs full table scans that scale linearly with data volume.
+
+    Index strategy:
+      - evidence_entries: frequently queried by (control_id) sorted DESC by collected_at
+        → turns O(n) scan into O(log n) seek, critical for chain-hash lookups in _store_result
+      - risk_scores: frequently queried by (risk_id) sorted DESC by recorded_at
+        → speeds up trend chart loading in /risks/{id} endpoint
+      - control_results: frequently queried by (control_id) sorted DESC by executed_at
+        → speeds up DISTINCT ON window in controls list + history endpoint
+
+    All are CREATE INDEX IF NOT EXISTS — safe to re-run on every startup.
+    """
+    indexes = [
+        # Turns control_sweep.py L88-93 (previously unindexed scan) into an index seek
+        (
+            "idx_evidence_control_collected",
+            "CREATE INDEX IF NOT EXISTS idx_evidence_control_collected "
+            "ON evidence_entries(control_id, collected_at DESC);"
+        ),
+        # Speeds up /risks/{id} score history query
+        (
+            "idx_risk_scores_risk_recorded",
+            "CREATE INDEX IF NOT EXISTS idx_risk_scores_risk_recorded "
+            "ON risk_scores(risk_id, recorded_at DESC);"
+        ),
+        # Speeds up controls list DISTINCT ON window + history endpoint
+        (
+            "idx_control_results_control_executed",
+            "CREATE INDEX IF NOT EXISTS idx_control_results_control_executed "
+            "ON control_results(control_id, executed_at DESC);"
+        ),
+        # Covers risk_recalculation WHERE status IN ('open','under_treatment') full scan
+        (
+            "idx_risks_status",
+            "CREATE INDEX IF NOT EXISTS idx_risks_status ON risks(status) "
+            "WHERE status IN ('open', 'under_treatment');"
+        ),
+        # Speeds up threat_intelligence SELECT by external_id (unique but no partial index)
+        (
+            "idx_threat_events_external_id",
+            "CREATE INDEX IF NOT EXISTS idx_threat_events_external_id "
+            "ON threat_events(external_id);"
+        ),
+    ]
+    for idx_name, ddl in indexes:
+        try:
+            await session.execute(text(ddl))
+            await session.commit()
+            logger.info("Performance index created/verified", index=idx_name)
+        except Exception as e:
+            await session.rollback()
+            logger.warning("Index creation skipped", index=idx_name, error=str(e))
+
+
 async def seed_frameworks(session: AsyncSession):
     """Seed compliance framework definitions."""
     from app.models.compliance import ComplianceFramework
@@ -615,6 +674,7 @@ async def init_db():
 
     async with AsyncSession_() as session:
         await create_timescale_hypertables(session)
+        await create_performance_indexes(session)   # ← NEW: composite indexes
         await seed_frameworks(session)
         await seed_control_catalog(session)
         await seed_superuser(session)
@@ -624,6 +684,7 @@ async def init_db():
 
     await engine.dispose()
     logger.info("Database initialisation complete")
+
 
 
 if __name__ == "__main__":
