@@ -33,7 +33,8 @@ def test_fetch_nvd_cves_timeout_retry(mock_httpx_client):
     task_mock.retry = Retry
 
     with pytest.raises(Retry):
-        fetch_nvd_cves.__wrapped__(task_mock)
+        original_func = getattr(fetch_nvd_cves.__wrapped__, "__func__", fetch_nvd_cves.__wrapped__)
+        original_func(task_mock)
 
 def test_upsert_threat_dedup(mock_db):
     """Test that _upsert_threat deduplicates on canonical ID"""
