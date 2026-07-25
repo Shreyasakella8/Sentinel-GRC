@@ -28,13 +28,10 @@ def test_fetch_nvd_cves_timeout_retry(mock_httpx_client):
     mock_client_instance = mock_httpx_client.return_value.__enter__.return_value
     mock_client_instance.get.side_effect = TimeoutException("Connection timed out")
 
-    task_mock = MagicMock()
-    task_mock.request.retries = 0
-    task_mock.retry = MagicMock(side_effect=Retry())
-
-    with pytest.raises(Retry):
-        original_func = getattr(fetch_nvd_cves.__wrapped__, "__func__", fetch_nvd_cves.__wrapped__)
-        original_func(task_mock)
+    with patch.object(fetch_nvd_cves, 'retry', MagicMock(side_effect=Retry())), \
+         patch.object(fetch_nvd_cves, 'request', MagicMock(retries=0)):
+        with pytest.raises(Retry):
+            fetch_nvd_cves()
 
 def test_upsert_threat_dedup(mock_db):
     """Test that _upsert_threat deduplicates on canonical ID"""
