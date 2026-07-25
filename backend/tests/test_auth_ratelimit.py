@@ -47,7 +47,10 @@ async def test_login_rate_limit_returns_429(client):
             resp = await client.post(
                 "/api/v1/auth/login",
                 data=login_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-Forwarded-For": "192.168.1.1",
+                },
             )
             statuses.append(resp.status_code)
 
@@ -92,7 +95,10 @@ async def test_rate_limit_response_body(client):
             resp = await client.post(
                 "/api/v1/auth/login",
                 data=login_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-Forwarded-For": "192.168.1.2",
+                },
             )
 
         assert resp.status_code == 429
