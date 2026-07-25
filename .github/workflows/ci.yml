@@ -151,4 +151,5 @@ jobs:
 
       - name: Validate docker-compose.yml
         run: |
+          cp .env.example .env
           docker compose config --quiet
