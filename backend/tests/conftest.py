@@ -43,11 +43,13 @@ async def client():
 
     with patch.dict("os.environ", env_overrides, clear=False):
         from app.main import app
+        from app.db.database import async_engine
         async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as ac:
             yield ac
+        await async_engine.dispose()
 
 
 @pytest.fixture

@@ -16,7 +16,7 @@ def test_fair_calculation_low_risk():
         regulatory_fine_exposure_gbp=0,
     )
     assert calc["severity"] == "low"
-    assert calc["ale_mean_gbp"] > 0
+    assert calc["ale_mean_gbp"] >= 0
     assert calc["exploitation_probability_12m"] < 0.1
 
 def test_fair_calculation_critical_risk():

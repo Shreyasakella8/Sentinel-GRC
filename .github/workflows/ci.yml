@@ -69,12 +69,34 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Wait for Postgres to be ready
+        # Belt-and-suspenders guard: the service health check retries up to 5×,
+        # but there can be a brief window before the port is reachable from the
+        # runner. This loop retries for up to 30 s before failing the step.
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U sentinel && break
+            echo "Waiting for Postgres... attempt $i/30"
+            sleep 1
+          done
+          pg_isready -h localhost -p 5432 -U sentinel \
+            || (echo "ERROR: Postgres did not become ready in time." && exit 1)
+
+      - name: Initialise test database schema
+        # Creates all SQLAlchemy-mapped tables (users, risks, threat_events, …)
+        # via Base.metadata.create_all against the CI test database.
+        # Without this step every test that touches Postgres fails with
+        # "relation does not exist".
+        working-directory: backend
+        run: python scripts/init_test_db.py
+
       - name: Run backend tests
         working-directory: backend
         run: |
           pytest tests/ -v --tb=short --no-header \
             --junit-xml=test-results.xml
         continue-on-error: false
+
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -130,4 +152,3 @@ jobs:
       - name: Validate docker-compose.yml
         run: |
           docker compose config --quiet
-        working-directory: sentinel-grc

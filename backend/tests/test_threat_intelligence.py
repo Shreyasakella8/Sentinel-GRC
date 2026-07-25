@@ -16,16 +16,24 @@ def mock_httpx_client():
         yield mock_client
 
 def test_fetch_nvd_cves_timeout_retry(mock_httpx_client):
-    """Test that Celery retry is triggered on HTTP timeout"""
+    """Test that Celery retry is triggered on HTTP timeout.
+
+    fetch_nvd_cves is a bind=True Celery task.  Calling the decorated task
+    object directly with a positional argument routes that argument through
+    Celery's internal dispatch, NOT into `self`.  The idiomatic way to unit-
+    test a bound Celery task without a running broker is via __wrapped__, which
+    Celery stores as the unwrapped plain function where the first positional
+    parameter is `self` (the task instance we want to control).
+    """
     mock_client_instance = mock_httpx_client.return_value.__enter__.return_value
     mock_client_instance.get.side_effect = TimeoutException("Connection timed out")
-    
+
     task_mock = MagicMock()
     task_mock.request.retries = 0
     task_mock.retry = Retry
-    
+
     with pytest.raises(Retry):
-        fetch_nvd_cves(task_mock)
+        fetch_nvd_cves.__wrapped__(task_mock)
 
 def test_upsert_threat_dedup(mock_db):
     """Test that _upsert_threat deduplicates on canonical ID"""
