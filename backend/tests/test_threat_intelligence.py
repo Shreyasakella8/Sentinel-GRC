@@ -30,7 +30,7 @@ def test_fetch_nvd_cves_timeout_retry(mock_httpx_client):
 
     task_mock = MagicMock()
     task_mock.request.retries = 0
-    task_mock.retry = Retry
+    task_mock.retry = MagicMock(side_effect=Retry)
 
     with pytest.raises(Retry):
         original_func = getattr(fetch_nvd_cves.__wrapped__, "__func__", fetch_nvd_cves.__wrapped__)
