@@ -1,7 +1,7 @@
 # ⚔️ SENTINEL-GRC
 ### Enterprise Continuous Controls Monitoring & Risk Intelligence Platform
 
-> **A production-grade, open-source Governance, Risk & Compliance (GRC) platform** that replaces commercial tools costing £150,000–£400,000/year (ServiceNow GRC, Archer, OneTrust). Built on a fully automated, evidence-based compliance engine aligned to **NIST CSF 2.0**, **ISO/IEC 27001:2022**, **EU AI Act (2024/1689)**, **DORA (2022/2554)**, **SOC 2 Type II**, **Cyber Essentials Plus**, and **UK GDPR** — with cryptographically signed evidence, quantitative FAIR risk scoring in GBP, and automated three-tier PDF reporting.
+> **A well-built demonstration of GRC platform architecture and control-automation concepts.** Built on a fully automated, evidence-based compliance engine aligned to **NIST CSF 2.0**, **ISO/IEC 27001:2022**, **EU AI Act (2024/1689)**, **DORA (2022/2554)**, **SOC 2 Type II**, **Cyber Essentials Plus**, and **UK GDPR** — with cryptographically signed evidence, quantitative FAIR risk scoring in GBP, and automated three-tier PDF reporting.
 
 ---
 
@@ -753,7 +753,7 @@ EVIDENCE_HMAC_KEY=your_32_character_minimum_hmac_signing_key
 
 # ── Admin Account ────────────────────────────────────────────────────────────
 FIRST_SUPERUSER_EMAIL=admin@sentinel.local
-FIRST_SUPERUSER_PASSWORD=Iamblessed@#2002
+FIRST_SUPERUSER_PASSWORD=SentinelDemo2024
 FIRST_SUPERUSER_NAME="Admin Shreyas"
 
 # ── Organisation Settings ────────────────────────────────────────────────────
