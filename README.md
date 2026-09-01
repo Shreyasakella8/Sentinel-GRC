@@ -41,9 +41,9 @@ SENTINEL-GRC has been fully hardened to support production loads with zero confi
 
 | Field    | Value                    |
 |----------|--------------------------|
-| Email    | `admin@sentinel.local`   |
-| Password | `SentinelDemo2024`       |
-| Name     | Admin Shreyas            |
+| Email    | `your_email@example.com` |
+| Password | `your_secure_password`   |
+| Name     | Admin User               |
 | Role     | CISO (superuser)         |
 
 ### Pre-Seeded Demo Users (created automatically on first startup)
