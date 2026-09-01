@@ -18,20 +18,24 @@ def mock_httpx_client():
 def test_fetch_nvd_cves_timeout_retry(mock_httpx_client):
     """Test that Celery retry is triggered on HTTP timeout.
 
-    fetch_nvd_cves is a bind=True Celery task.  Calling the decorated task
-    object directly with a positional argument routes that argument through
-    Celery's internal dispatch, NOT into `self`.  The idiomatic way to unit-
-    test a bound Celery task without a running broker is via __wrapped__, which
-    Celery stores as the unwrapped plain function where the first positional
-    parameter is `self` (the task instance we want to control).
+    fetch_nvd_cves is a bind=True Celery task.  In Celery 5.4+ the task's
+    `request` is a read-only property so patch.object() fails with
+    AttributeError.  The correct approach is:
+      1. push_request(retries=0) — injects a fake request context
+      2. patch 'retry' on the task so it raises Retry without a broker
+      3. Call the task directly — Celery routes it through its own dispatch
+      4. pop_request() in a finally block to clean up
     """
     mock_client_instance = mock_httpx_client.return_value.__enter__.return_value
     mock_client_instance.get.side_effect = TimeoutException("Connection timed out")
 
-    with patch.object(fetch_nvd_cves, 'retry', MagicMock(side_effect=Retry())), \
-         patch.object(fetch_nvd_cves, 'request', MagicMock(retries=0)):
-        with pytest.raises(Retry):
-            fetch_nvd_cves()
+    fetch_nvd_cves.push_request(retries=0)
+    try:
+        with patch.object(fetch_nvd_cves, 'retry', side_effect=Retry()):
+            with pytest.raises(Retry):
+                fetch_nvd_cves()
+    finally:
+        fetch_nvd_cves.pop_request()
 
 def test_upsert_threat_dedup(mock_db):
     """Test that _upsert_threat deduplicates on canonical ID"""
